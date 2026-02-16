@@ -5,9 +5,9 @@ import com.account_service.entity.Customer;
 import com.account_service.exceptions.ResourceNotFoundException;
 import com.account_service.repositories.AccountRepository;
 import com.account_service.services.AccountService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -18,24 +18,25 @@ import java.util.UUID;
 @Service
 public class AccountServiceImpl implements AccountService {
 
-    @Autowired
-    private RestTemplate restTemplate;
+    private final RestTemplate restTemplate;
+    private final AccountRepository accountRepository;
 
     private Logger logger = LoggerFactory.getLogger(AccountServiceImpl.class);
 
+    public AccountServiceImpl(RestTemplate restTemplate,
+                              AccountRepository accountRepository) {
+        this.restTemplate = restTemplate;
+        this.accountRepository = accountRepository;
+    }
 
-    @Autowired
-    private AccountRepository accountRepository;
     @Override
     public Account create(Account account) {
         String accountId = UUID.randomUUID().toString();
         account.setAccountId(accountId);
 
-
-        Date current_Date = new Date();
-
-        account.setAccountOpeningDate(current_Date);
-        account.setLastActivity(current_Date);
+        Date currentDate = new Date();
+        account.setAccountOpeningDate(currentDate);
+        account.setLastActivity(currentDate);
 
         return accountRepository.save(account);
     }
@@ -46,25 +47,29 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
+    @CircuitBreaker(name = "customerService", fallbackMethod = "fallbackGetAccount")
     public Account getAccount(String id) {
 
-        // Getting Accounts from ACCOUNT SERVICE
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
+        Customer customer = restTemplate.getForObject(
+                "http://customer-service/customer/" + account.getCustomerId(),
+                Customer.class
+        );
 
-            Account account = accountRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Account with given id not found try again with correct details !!"));
+        account.setCustomer(customer);
+        return account;
+    }
 
-            // Getting customers from USER SERVICE
+    public Account fallbackGetAccount(String id, Exception ex) {
+        logger.error("Customer service is down: {}", ex.getMessage());
 
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
-            Customer customer = restTemplate.getForObject("http://CUSTOMER-SERVICE/customer/" + account.getCustomerId(), Customer.class);
-
-
-            account.setCustomer(customer);
-
-            return account;
-
-
-
+        account.setCustomer(null);
+        return account;
     }
 
     @Override
@@ -72,83 +77,21 @@ public class AccountServiceImpl implements AccountService {
         return accountRepository.findByCustomerId(customerId);
     }
 
-
     @Override
     public Account updateAccount(String id, Account account) {
+        Account existing = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
-        Account newAccount = accountRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Account with given id not found  try again with correct details!!"));
-        newAccount.setAccountType(account.getAccountType());
-        newAccount.setLastActivity(new Date());
-        return accountRepository.save(newAccount);
+        existing.setAccountType(account.getAccountType());
+        existing.setLastActivity(new Date());
+
+        return accountRepository.save(existing);
     }
-
-    @Override
-    public Account addBalance(String id, int amount, String customerId) {
-
-
-            Account newAccount = accountRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Account with given id not found try again with correct details !!"));
-
-            Customer customer = restTemplate.getForObject("http://CUSTOMER-SERVICE/customer/" + customerId, Customer.class);
-
-            if (customer == null) {
-
-                throw new ResourceNotFoundException("Customer with given id not found try again with correct details !!");
-            } else {
-
-                int newBalance = newAccount.getBalance() + amount;
-                newAccount.setBalance(newBalance);
-                newAccount.setLastActivity(new Date());
-
-                return accountRepository.save(newAccount);
-            }
-
-
-    }
-
-    @Override
-    public Account withdrawBalance(String id, int amount, String customerId) {
-
-
-            Account newAccount = accountRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Account with given id not found try again with correct details !!"));
-
-            Customer customer = restTemplate.getForObject("http://CUSTOMER-SERVICE/customer/" + customerId, Customer.class);
-
-            if (customer == null) {
-                throw new ResourceNotFoundException("Customer with given id not found try again with correct details !!");
-            } else {
-
-                int newBalance = newAccount.getBalance() - amount;
-                newAccount.setBalance(newBalance);
-                newAccount.setLastActivity(new Date());
-                return accountRepository.save(newAccount);
-            }
-
-
-
-    }
-
 
     @Override
     public void delete(String id) {
-
-        Account account = accountRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Account with given id not found !!"));
-        this.accountRepository.delete(account);
-
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        accountRepository.delete(account);
     }
-
-    @Override
-    public void deleteAccountUsingCustomerId(String customerId) {
-
-        List<Account> accounts = accountRepository.findByCustomerId(customerId);
-
-        for( Account account : accounts)
-        {
-            this.accountRepository.delete(account);
-        }
-
-
-
-    }
-
-
 }
