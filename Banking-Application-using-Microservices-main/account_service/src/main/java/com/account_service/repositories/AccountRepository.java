@@ -9,7 +9,4 @@ public interface AccountRepository extends JpaRepository<Account,String> {
 
     void deleteByCustomerId(String customerId);
 
-    //Find accounts using userId
-    List<Account> findByCustomerId(String customerId);
-
 }
