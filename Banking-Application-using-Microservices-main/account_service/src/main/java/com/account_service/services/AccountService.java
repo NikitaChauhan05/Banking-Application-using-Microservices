@@ -29,7 +29,6 @@ public interface AccountService {
     //update Balance
 
     Account addBalance(String id, int amount, String customerId);
-    Account withdrawBalance(String id, int amount, String customerId);
 
     //delete
 
