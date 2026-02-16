@@ -34,4 +34,6 @@ public interface AccountService {
     //delete
 
     void delete(String id);
+ void deleteAccountUsingCustomerId(String customerId);
+
 }
