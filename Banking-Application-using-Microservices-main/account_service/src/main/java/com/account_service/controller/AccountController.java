@@ -63,14 +63,6 @@ public class AccountController {
         return ResponseEntity.status(HttpStatus.OK).body(accountService.addBalance(accountID,amount, customerId));
     }
 
-
-    // withdraw Money
-    @PutMapping("/withdraw/{accountID}")
-    public ResponseEntity<Account> withdraw(@PathVariable String accountID,@RequestParam int amount, @RequestParam String customerId)
-    {
-        return ResponseEntity.status(HttpStatus.OK).body(accountService.withdrawBalance(accountID,amount, customerId));
-    }
-
     // Delete Account
 
     @DeleteMapping("/{accountId}")
