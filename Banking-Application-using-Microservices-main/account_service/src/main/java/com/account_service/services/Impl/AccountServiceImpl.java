@@ -94,4 +94,8 @@ public class AccountServiceImpl implements AccountService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
         accountRepository.delete(account);
     }
+    @Override
+    public void deleteAccountUsingCustomerId(String customerId) {
+        accountRepository.deleteByCustomerId(customerId);
+    }
 }
